@@ -38,9 +38,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'frontend_app',
+    # --- CORS (optional, for local Streamlit demos) ---
+    # Uncomment the line below if you have django-cors-headers installed
+    # and want to allow Streamlit (running on localhost:8501) to call Django APIs
+    # 'corsheaders',
 ]
 
 MIDDLEWARE = [
+    # --- CORS (optional, for local Streamlit demos) ---
+    # Uncomment the line below if you have django-cors-headers installed
+    # 'corsheaders.middleware.CorsMiddleware',
+    # ------------------------------------------------
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -55,7 +63,7 @@ ROOT_URLCONF = 'backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],   # ← ADD THIS
+        'DIRS': [BASE_DIR / 'archive_templates'],   # Updated: templates moved to archive_templates
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -116,9 +124,16 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_DIRS = [BASE_DIR / 'archive_static']  # Updated: static moved to archive_static
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- CORS (optional, for local Streamlit demos) ---
+# Uncomment the lines below if you have django-cors-headers installed
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:8501",  # Streamlit default port
+# ]
+# ------------------------------------------------
