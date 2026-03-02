@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scheduler - AI for Bharat</title>
+    <link rel="stylesheet" href="style.css?v=1.0.1">
+</head>
+
+<body>
+    <nav>
+        <div class="logo">AI for <span>Bharat</span></div>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="generate.html">Generate</a>
+            <a href="video_gen.html">AI Video</a>
+            <a href="history.html" class="active">History</a>
+            <a href="javascript:void(0)" onclick="handleLogout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container" style="animation: fadeInUp 0.8s ease-out;">
+        <div class="card auth-form" style="max-width: 500px;">
+            <h2>Schedule Content</h2>
+            <p style="margin-bottom: 1.5rem; color: var(--text-muted);">
+                Scheduling for: <strong id="contentTopicDisplay">Sample Topic</strong>
+            </p>
+            <form onsubmit="handleSchedule(event)">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" name="scheduled_date" required>
+                </div>
+                <div class="form-group">
+                    <label>Time</label>
+                    <input type="time" name="scheduled_time" required>
+                </div>
+                <button type="submit">Save Schedule</button>
+            </form>
+            <button class="btn-secondary" onclick="window.location.href='history.html'">Back to History</button>
+        </div>
+    </div>
+    <script src="main.js?v=1.0.1"></script>
+</body>
+
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate - AI for Bharat</title>
+    <link rel="stylesheet" href="style.css?v=1.0.1">
+</head>
+
+<body>
+    <nav>
+        <div class="logo">AI for <span>Bharat</span></div>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="generate.html" class="active">Generate</a>
+            <a href="video_gen.html">AI Video</a>
+            <a href="history.html">History</a>
+            <a href="javascript:void(0)" onclick="handleLogout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container" style="animation: fadeInUp 0.8s ease-out;">
+        <div class="card">
+            <h2>AI Content Generator</h2>
+            <form onsubmit="generateContent(event)">
+                <div class="form-group">
+                    <label>Topic</label>
+                    <input type="text" name="topic" placeholder="e.g. Benefits of Yoga" required>
+                </div>
+                <div class="form-group" style="display: flex; gap: 1rem;">
+                    <div style="flex: 1;">
+                        <label>Content Type</label>
+                        <select name="content_type">
+                            <option value="Blog">Blog</option>
+                            <option value="LinkedIn Post">LinkedIn Post</option>
+                            <option value="Instagram Caption">Instagram Caption</option>
+                            <option value="Tweet">Tweet</option>
+                            <option value="YouTube Script">YouTube Script</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Language</label>
+                        <select name="language">
+                            <option value="English">English</option>
+                            <option value="Hindi">Hindi</option>
+                            <option value="Hinglish">Hinglish</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit">Generate Content</button>
+            </form>
+
+            <div id="outputSection" style="margin-top: 2rem;">
+                <div id="captionBox" style="margin-bottom: 1.5rem; display: none; animation: fadeInUp 0.5s ease-out;">
+                    <label>Caption / Title</label>
+                    <div id="captionContent" class="output-area" style="min-height: auto; font-weight: 700;"></div>
+                </div>
+
+                <div id="mainContentBox">
+                    <label id="mainContentLabel">Generated Content</label>
+                    <div id="outputArea" class="output-area">Generated content will appear here...</div>
+                </div>
+
+                <div id="scriptExtras" style="display: none; animation: fadeInUp 0.5s ease-out;">
+                    <div style="margin-top: 1.5rem;">
+                        <label>Scenes</label>
+                        <div id="scenesContent" class="output-area"></div>
+                    </div>
+                    <div style="margin-top: 1.5rem;">
+                        <label>Storyboard Preview</label>
+                        <div id="storyboardContent" class="output-area"></div>
+                    </div>
+                    <div style="margin-top: 1.5rem;">
+                        <label>Music Suggestion</label>
+                        <div id="musicContent" class="output-area"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="saveSection" style="display: none; margin-top: 1rem; animation: fadeInUp 0.5s ease-out;">
+                <button class="btn-secondary" onclick="window.location.href='history.html'">View in History to
+                    Schedule</button>
+            </div>
+        </div>
+    </div>
+    <script src="main.js?v=1.0.1"></script>
+</body>
+
+</html>

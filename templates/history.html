@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History - AI for Bharat</title>
+    <link rel="stylesheet" href="style.css?v=1.0.1">
+</head>
+
+<body>
+    <nav>
+        <div class="logo">AI for <span>Bharat</span></div>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="generate.html">Generate</a>
+            <a href="video_gen.html">AI Video</a>
+            <a href="history.html" class="active">History</a>
+            <a href="javascript:void(0)" onclick="handleLogout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container" style="animation: fadeInUp 0.8s ease-out;">
+        <h2>Content History</h2>
+        <div id="historyContainer">
+            <p>Your history is stored locally in this demo.</p>
+            <div class="history-item">
+                <h3>Sample Topic: Future of AI in India</h3>
+                <p>
+                    <span class="history-tag">YouTube Script</span>
+                    <span class="history-tag">Hindi</span>
+                    <small>3/2/2026</small>
+                </p>
+                <div class="output-area" style="margin-top: 1rem; max-height: 150px; overflow-y: auto;">
+                    [CAPTION] Exploring the future of AI in India... [SCENES] Scene 1...
+                </div>
+                <button class="btn-secondary" onclick="window.location.href='scheduler.html'">Schedule This</button>
+            </div>
+        </div>
+    </div>
+    <script src="main.js?v=1.0.1"></script>
+</body>
+
+</html>
