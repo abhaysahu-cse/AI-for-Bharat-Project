@@ -1,0 +1,59 @@
+.hero {
+    background-color: var(--bg-dark);
+    color: var(--text-white);
+    padding: 6rem 2rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    animation: fadeInUp 0.8s ease-out;
+}
+
+.hero h1 span {
+    color: var(--primary);
+}
+
+.hero p.tagline {
+    font-size: 1.25rem;
+    font-style: italic;
+    color: var(--text-white);
+    margin-bottom: 1rem;
+    animation: fadeInUp 0.8s ease-out 0.2s both;
+}
+
+.hero p.desc {
+    max-width: 800px;
+    margin: 0 auto 2rem;
+    color: rgba(255, 255, 255, 0.8);
+    animation: fadeInUp 0.8s ease-out 0.4s both;
+}
+
+.btn-hero {
+    background: var(--primary);
+    color: white;
+    padding: 1rem 2rem;
+    font-size: 1.25rem;
+    border-radius: 50px;
+    text-decoration: none;
+    display: inline-block;
+    font-weight: 600;
+    transition: transform 0.3s, background 0.3s, box-shadow 0.3s;
+    animation: fadeInUp 0.8s ease-out 0.6s both;
+}
+
+.btn-hero:hover {
+    background: var(--primary-hover);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(255, 122, 0, 0.3);
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+}

@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -5,17 +6,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - AI for Bharat</title>
-    <link rel="stylesheet" href="style.css?v=1.0.1">
+    <link rel="stylesheet" href="{% static 'css/common.css' %}?v=1.0.1">
+    <link rel="stylesheet" href="{% static 'css/index.css' %}?v=1.0.1">
 </head>
 
 <body>
     <nav>
         <div class="logo">AI for <span>Bharat</span></div>
         <div class="nav-links">
-            <a href="index.html" class="active">Dashboard</a>
-            <a href="generate.html">Generate</a>
-            <a href="video_gen.html">AI Video</a>
-            <a href="history.html">History</a>
+            <a href="{% url 'index' %}" class="active">Dashboard</a>
+            <a href="{% url 'generate' %}">Generate</a>
+            <a href="{% url 'video_gen' %}">AI Video</a>
+            <a href="{% url 'history' %}">History</a>
+            <a href="{% url 'scheduler' %}">Scheduler</a>
             <a href="javascript:void(0)" onclick="handleLogout()">Logout</a>
         </div>
     </nav>
@@ -24,7 +27,7 @@
         <h1>AI for <span>Bharat</span></h1>
         <p class="tagline">Create. Localize. Reach Bharat.</p>
         <p class="desc">Generate culturally adapted social media content for Indian audiences in minutes using AI.</p>
-        <a href="generate.html" class="btn-hero">Generate Content &rarr;</a>
+        <a href="{% url 'generate' %}" class="btn-hero">Generate Content &rarr;</a>
     </header>
 
     <div class="container">
@@ -36,36 +39,36 @@
 
         <div class="dashboard-grid" style="animation: fadeInUp 0.8s ease-out 1s both;">
             <div class="card" style="margin-bottom: 0; text-align: center; transition: transform 0.3s; cursor: pointer;"
-                onclick="window.location.href='generate.html'">
+                onclick="location.href='{% url 'generate' %}'">
                 <h3 style="margin-bottom: 0.5rem;">Generate</h3>
                 <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;">Create new social
                     content</p>
                 <button>Start Now</button>
             </div>
             <div class="card" style="margin-bottom: 0; text-align: center; transition: transform 0.3s; cursor: pointer;"
-                onclick="window.location.href='video_gen.html'">
+                onclick="location.href='{% url 'video_gen' %}'">
                 <h3 style="margin-bottom: 0.5rem;">AI Video</h3>
                 <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;">Create high-quality AI
                     videos</p>
                 <button>Create</button>
             </div>
             <div class="card" style="margin-bottom: 0; text-align: center; transition: transform 0.3s; cursor: pointer;"
-                onclick="window.location.href='history.html'">
+                onclick="location.href='{% url 'history' %}'">
                 <h3 style="margin-bottom: 0.5rem;">History</h3>
                 <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;">View your past
                     creations</p>
                 <button>View All</button>
             </div>
             <div class="card" style="margin-bottom: 0; text-align: center; transition: transform 0.3s; cursor: pointer;"
-                onclick="window.location.href='history.html'">
+                onclick="location.href='{% url 'scheduler' %}'">
                 <h3 style="margin-bottom: 0.5rem;">Scheduler</h3>
                 <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;">Set post timings and
                     cues</p>
-                <button>Go to History</button>
+                <button>Schedule Content</button>
             </div>
         </div>
     </div>
-    <script src="main.js?v=1.0.1"></script>
+    <script src="{% static 'js/common.js' %}?v=1.0.1"></script>
 </body>
 
 </html>
