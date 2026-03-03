@@ -150,27 +150,36 @@ def _draft_card(draft: Dict, uid: str):
     st.markdown(f"**{did}** — *{_pretty_dt(draft.get('created_at'))}*")
     st.caption(f"Prompt: {draft.get('prompt')}")
     cols = st.columns([4, 1, 1])
+
     with cols[0]:
         for v in draft.get("variants", []):
             lang = v.get("lang", "—")
             snippet = _excerpt(v.get("text", ""), 120)
             st.markdown(f"- **{lang}**: {snippet}")
+
     with cols[1]:
         # View (store the full draft object in session so we don't need to look it up by id)
         if st.button("View", key=f"view_{uid}"):
             st.session_state["history_view_obj"] = draft
+
     with cols[2]:
         # Bookmark toggle (keys unique by uid)
-        if draft.get("draft_id") in st.session_state["bookmarks"]:
+        _bookmarks = st.session_state.get("bookmarks", {})
+
+        if draft.get("draft_id") in _bookmarks:
             if st.button("★", key=f"unbk_{uid}"):
+                # ensure bookmarks dict exists then pop
+                st.session_state.setdefault("bookmarks", {})
                 st.session_state["bookmarks"].pop(draft.get("draft_id"), None)
                 st.session_state["last_history_action"] = ("unbookmark", draft)
                 st.success("Removed bookmark")
         else:
             if st.button("☆", key=f"bk_{uid}"):
+                st.session_state.setdefault("bookmarks", {})
                 st.session_state["bookmarks"][draft.get("draft_id")] = draft
                 st.session_state["last_history_action"] = ("bookmark", draft)
                 st.success("Bookmarked")
+
     st.markdown("---")
 
 def _render_full_draft(draft: Dict):
