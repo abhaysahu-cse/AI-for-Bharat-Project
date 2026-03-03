@@ -1,56 +1,122 @@
-﻿from django.shortcuts import render
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+﻿# frontend_app/views.py
 import json
+import uuid
+from django.http import JsonResponse, HttpResponseBadRequest
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.timezone import now
 
-def index(request):
-    return render(request, "index.html")
+# Very small in-memory demo store (dev only)
+_DEMO_STORE = {
+    "drafts": []
+}
 
-def generate_page(request):
-    return render(request, "generate.html")
-
-def scheduler_page(request):
-    return render(request, "scheduler.html")
-
-def video_gen_page(request):
-    return render(request, "video_gen.html")
-
-def history_page(request):
-    return render(request, "history.html")
-
-def login_page(request):
-    return render(request, "login.html")
-
-def signup_page(request):
-    return render(request, "signup.html")
+def _make_variant(vid, lang, text):
+    return {"variant_id": vid, "lang": lang, "text": text, "image_prompt": ""}
 
 @csrf_exempt
-def generate_ai(request):
+def drafts_list_create(request):
+    """
+    POST /api/drafts/  -> create a draft (mock)
+    GET  /api/drafts/  -> return recent drafts (mock)
+    """
     if request.method == "POST":
         try:
-            data = json.loads(request.body)
-            prompt = data.get("prompt", "")
-            return JsonResponse({"result": f"AI Output for: {prompt}"})
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON"}, status=400)
-    return JsonResponse({"error": "POST required"}, status=405)
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            return HttpResponseBadRequest("invalid json")
 
-def api_history(request):
-    # Mock history data
-    history_data = [
-        {
-            "id": 1,
-            "topic": "Future of AI in India",
-            "content_type": "YouTube Script",
-            "language": "Hindi",
-            "created_at": "2026-03-02T12:00:00Z",
-            "generated_text": "[CAPTION] Exploring the future of AI in India... [SCENES] Scene 1..."
+        draft_id = str(uuid.uuid4())
+        prompt = payload.get("prompt", "")
+        languages = payload.get("languages", ["en", "hi"])
+        variants = []
+        for i, lang in enumerate(languages, start=1):
+            vid = f"v{i}"
+            text = f"[MOCK {lang}] Generated text for prompt: {prompt}"
+            variants.append(_make_variant(vid, lang, text))
+
+        draft = {
+            "draft_id": draft_id,
+            "prompt": prompt,
+            "variants": variants,
+            "status": "generated",
+            "created_at": now().isoformat(),
         }
-    ]
-    return JsonResponse(history_data, safe=False)
+        # keep small history (append)
+        _DEMO_STORE["drafts"].insert(0, draft)
+        # keep only last 20
+        _DEMO_STORE["drafts"] = _DEMO_STORE["drafts"][:20]
+        return JsonResponse(draft, status=201)
+
+    # GET -> return small list
+    return JsonResponse(_DEMO_STORE["drafts"], safe=False)
+
 
 @csrf_exempt
-def api_schedule(request):
-    if request.method == "POST":
-        return JsonResponse({"status": "success", "message": "Content scheduled"})
-    return JsonResponse({"error": "POST required"}, status=405)
+def draft_localize(request, draft_id):
+    """
+    POST /api/drafts/<draft_id>/localize
+    Body: { "variant_id": "v1", "text": "new text", "target_lang": "hi" }
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "method not allowed"}, status=405)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return HttpResponseBadRequest("invalid json")
+
+    variant_id = payload.get("variant_id")
+    new_text = payload.get("text")
+    if not variant_id or new_text is None:
+        return HttpResponseBadRequest("variant_id and text required")
+
+    # find draft
+    for d in _DEMO_STORE["drafts"]:
+        if d["draft_id"] == draft_id:
+            for v in d["variants"]:
+                if v["variant_id"] == variant_id:
+                    v["text"] = new_text
+                    return JsonResponse({"ok": True, "variant": v})
+            # variant not found
+            return JsonResponse({"ok": False, "error": "variant not found"}, status=404)
+
+    return JsonResponse({"ok": False, "error": "draft not found"}, status=404)
+
+
+@csrf_exempt
+def draft_schedule(request, draft_id):
+    """
+    POST /api/drafts/<draft_id>/schedule
+    Body: { "variant_id": "v1", "platforms": ["instagram"], "publish_time": "ISO8601" }
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "method not allowed"}, status=405)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return HttpResponseBadRequest("invalid json")
+
+    # simple mock schedule - just return schedule_id
+    schedule_id = str(uuid.uuid4())
+    return JsonResponse({"ok": True, "schedule_id": schedule_id, "status": "scheduled"}, status=201)
+
+
+def draft_analytics(request, draft_id):
+    """
+    GET /api/analytics/drafts/<draft_id>
+    Returns mock analytics structure.
+    """
+    # simplest: return some KPIs
+    resp = {
+        "draft_id": draft_id,
+        "kpis": {"impressions": 1234, "likes": 120, "engagement_rate": 0.032},
+        "variants": [
+            {"variant_id": "v1", "lang": "en", "impressions": 800, "likes": 80, "predicted_score": 71.2},
+            {"variant_id": "v2", "lang": "hi", "impressions": 434, "likes": 40, "predicted_score": 65.1},
+        ],
+        "timeline": [
+            {"date": "2026-03-01", "impressions": 100},
+            {"date": "2026-03-02", "impressions": 200},
+        ],
+        "suggestions": ["Shorten the caption to 100 characters", "Add 2-3 popular hashtags"],
+    }
+    return JsonResponse(resp)
