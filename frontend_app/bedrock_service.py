@@ -1,64 +1,66 @@
-﻿# backend/frontend_app/bedrock_service.py
+﻿# frontend_app/bedrock_service.py
 import os
 import json
-import uuid
-import random
-from datetime import datetime
+import logging
+import boto3
+import traceback
 
-USE_BEDROCK = os.getenv("USE_BEDROCK", "false").lower() in ("1","true","yes")
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
-if USE_BEDROCK:
-    import boto3
-    bedrock = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION","us-east-1"))
+class BedrockService:
+    def __init__(self, region=None):
+        self.region = region or os.getenv("AWS_REGION", "us-east-1")
+        self.client = boto3.client("bedrock-runtime", region_name=self.region)
 
-def _mock_variants(prompt, languages, tone, content_type):
-    # Return a simple predictable mock so Streamlit can demo without backend
-    variants = []
-    for i,lang in enumerate(languages, start=1):
-        vid = f"v{i}"
-        text = f"[MOCK {lang}] {prompt[:120]} — tone:{tone}, type:{content_type}"
-        image_prompt = f"Thumbnail for {prompt} in {lang}"
-        variants.append({"variant_id": vid, "lang": lang, "text": text, "image_prompt": image_prompt})
-    return variants
-
-def call_bedrock_for_json(model_id, body_dict):
-    """
-    Call Bedrock model endpoint and return parsed json. Assumes model returns JSON string.
-    """
-    body_bytes = json.dumps(body_dict).encode("utf-8")
-    resp = bedrock.invoke_model(
-        modelId=model_id,
-        contentType="application/json",
-        accept="application/json",
-        body=body_bytes
-    )
-    raw = resp["body"].read().decode("utf-8")
-    # model should have returned JSON text; try parse
-    try:
-        return json.loads(raw)
-    except Exception:
-        # fallback: return raw string wrapped
-        return {"raw": raw}
-
-def generate_variants(prompt, languages=None, tone="casual", content_type="instagram_post"):
-    languages = languages or ["en"]
-    if not USE_BEDROCK:
-        return _mock_variants(prompt, languages, tone, content_type)
-
-    # Example: request that the model returns JSON with variants array
-    model_id = os.getenv("BEDROCK_MODEL_ID", "amazon.titan-text-express-v1")
-    prompt_template = {
-        "instruction": "Generate content variants as JSON. EXACTLY return a JSON object like {\"variants\":[{...},...]}",
-        "prompt": {
-            "prompt_text": prompt,
-            "tone": tone,
-            "content_type": content_type,
-            "languages": languages
+    def invoke_model_json(self, model_id_or_arn: str, input_text: str):
+        body = {
+            "messages": [{"role": "user", "content": [{"text": input_text}]}],
+            "inferenceConfig": {"maxTokens": 1000, "temperature": 0.7}
         }
-    }
-    resp = call_bedrock_for_json(model_id, prompt_template)
-    # Validate resp shape
-    if isinstance(resp, dict) and "variants" in resp:
-        return resp["variants"]
-    # fallback to mock
-    return _mock_variants(prompt, languages, tone, content_type)
+        
+        resp = self.client.invoke_model(
+            modelId=model_id_or_arn,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(body).encode("utf-8"),
+        )
+        raw = resp["body"].read().decode("utf-8")
+        response_data = json.loads(raw)
+        
+        # Extract Nova text
+        generated_text = response_data["output"]["message"]["content"][0]["text"]
+        
+        # Clean up any Markdown formatting (e.g., ```json ... ```)
+        clean_text = generated_text.strip()
+        if clean_text.startswith("```json"): clean_text = clean_text[7:]
+        if clean_text.startswith("```"): clean_text = clean_text[3:]
+        if clean_text.endswith("```"): clean_text = clean_text[:-3]
+        
+        return json.loads(clean_text.strip())
+
+    def generate_variants(self, prompt: str, languages: list, model_id: str):
+        try:
+            system_prompt = (
+                "You are a concise social media copywriter. Return ONLY valid JSON with a 'variants' list.\n"
+                "Format: {\"variants\": [{\"variant_id\":\"v1\",\"lang\":\"en\",\"text\":\"...\"}, ...]}\n"
+                f"User prompt: {prompt}\n"
+                f"Languages: {','.join(languages)}\n"
+                "Produce 1 variant per language requested."
+            )
+            
+            resp = self.invoke_model_json(model_id, system_prompt)
+            
+            # Safely normalize the payload to a list
+            if isinstance(resp, list):
+                return resp
+            elif isinstance(resp, dict) and "variants" in resp:
+                return resp["variants"]
+            else:
+                return [{"variant_id": "v-err", "lang": "en", "text": f"Unexpected format: {resp}"}]
+                
+        except Exception as e:
+            # If the service crashes, it returns the exact error line as the variant text
+            err_msg = traceback.format_exc()
+            logger.error(f"Bedrock Service Crash:\n{err_msg}")
+            return [{"variant_id": "v-crash", "lang": "en", "text": f"DEBUG TRACEBACK:\n{err_msg}"}]

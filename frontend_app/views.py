@@ -1,9 +1,12 @@
 ﻿# frontend_app/views.py
 import json
 import uuid
+import os
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.timezone import now
+
+from .bedrock_service import BedrockService
 
 # Very small in-memory demo store (dev only)
 _DEMO_STORE = {
@@ -16,8 +19,8 @@ def _make_variant(vid, lang, text):
 @csrf_exempt
 def drafts_list_create(request):
     """
-    POST /api/drafts/  -> create a draft (mock)
-    GET  /api/drafts/  -> return recent drafts (mock)
+    POST /api/drafts/  -> create a draft (calls Bedrock if enabled)
+    GET  /api/drafts/  -> return recent drafts
     """
     if request.method == "POST":
         try:
@@ -28,27 +31,69 @@ def drafts_list_create(request):
         draft_id = str(uuid.uuid4())
         prompt = payload.get("prompt", "")
         languages = payload.get("languages", ["en", "hi"])
-        variants = []
-        for i, lang in enumerate(languages, start=1):
-            vid = f"v{i}"
-            text = f"[MOCK {lang}] Generated text for prompt: {prompt}"
-            variants.append(_make_variant(vid, lang, text))
 
-        draft = {
-            "draft_id": draft_id,
-            "prompt": prompt,
-            "variants": variants,
-            "status": "generated",
-            "created_at": now().isoformat(),
-        }
+        # If USE_BEDROCK=true in env, call Bedrock via BedrockService
+        if os.getenv("USE_BEDROCK", "false").lower() in ("1", "true", "yes"):
+            try:
+                bedrock = BedrockService()
+                # THE FIX: generate_variants returns a list directly, so we just assign it to variants
+                variants = bedrock.generate_variants(
+                    prompt, 
+                    languages, 
+                    os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0") # Updated default model
+                )
+                
+                # normalise variant IDs if model didn't provide them
+                for i, v in enumerate(variants, start=1):
+                    v.setdefault("variant_id", f"v{i}")
+                    v.setdefault("image_prompt", "")
+                
+                draft = {
+                    "draft_id": draft_id,
+                    "prompt": prompt,
+                    "variants": variants,
+                    "status": "generated",
+                    "created_at": now().isoformat(),
+                }
+            except Exception as e:
+                # If model call failed, fall back to mock and inform client
+                variants = []
+                for i, lang in enumerate(languages, start=1):
+                    vid = f"v{i}"
+                    text = f"[FALLBACK {lang}] Could not call Bedrock: {str(e)}"
+                    variants.append(_make_variant(vid, lang, text))
+                draft = {
+                    "draft_id": draft_id,
+                    "prompt": prompt,
+                    "variants": variants,
+                    "status": "generated_fallback",
+                    "created_at": now().isoformat(),
+                }
+        else:
+            # mock behavior (existing)
+            variants = []
+            for i, lang in enumerate(languages, start=1):
+                vid = f"v{i}"
+                text = f"[MOCK {lang}] Generated text for prompt: {prompt}"
+                variants.append(_make_variant(vid, lang, text))
+            draft = {
+                "draft_id": draft_id,
+                "prompt": prompt,
+                "variants": variants,
+                "status": "generated",
+                "created_at": now().isoformat(),
+            }
+
         # keep small history (append)
         _DEMO_STORE["drafts"].insert(0, draft)
         # keep only last 20
         _DEMO_STORE["drafts"] = _DEMO_STORE["drafts"][:20]
+        
         return JsonResponse(draft, status=201)
 
     # GET -> return small list
-    return JsonResponse(_DEMO_STORE["drafts"], safe=False)
+    if request.method == "GET":
+        return JsonResponse(_DEMO_STORE["drafts"], safe=False)
 
 
 @csrf_exempt
