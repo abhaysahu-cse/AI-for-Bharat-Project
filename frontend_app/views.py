@@ -1,243 +1,363 @@
 ﻿# frontend_app/views.py
-import json
-import uuid
+"""
+BharatStudio Django views.
+Existing:  POST /api/drafts/
+New:       POST /api/generate/video_script/
+           POST /api/generate/hashtags/
+           POST /api/generate/calendar/
+           POST /api/generate/platform_variants/
+           POST /api/generate/voice/
+"""
+
 import os
-from django.http import JsonResponse, HttpResponseBadRequest
+import json
+import logging
+import base64
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.timezone import now
+from django.views.decorators.http import require_http_methods
 
 from .bedrock_service import BedrockService
+from .image_service import generate_image
 
-# ── NEW import for image generation ──────────────────────────────────────────
-try:
-    from . import image_service
-    _IMAGE_SERVICE_AVAILABLE = True
-except ImportError:
-    _IMAGE_SERVICE_AVAILABLE = False
-
-import logging
 logger = logging.getLogger(__name__)
 
-# Very small in-memory demo store (dev only)
-_DEMO_STORE = {
-    "drafts": []
-}
-
-_BEDROCK_IMG_MODEL = os.getenv("BEDROCK_IMAGE_MODEL_ID", "amazon.titan-image-generator-v1")
+_USE_BEDROCK = os.getenv("USE_BEDROCK", "false").lower() in ("1", "true", "yes")
+_BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "eu.amazon.nova-lite-v1:0")
 
 
-# ── EXISTING helper — unchanged ───────────────────────────────────────────────
-def _make_variant(vid, lang, text):
-    return {"variant_id": vid, "lang": lang, "text": text, "image_prompt": ""}
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _json_body(request):
+    """Parse JSON body; raise ValueError on bad JSON."""
+    return json.loads(request.body.decode("utf-8"))
 
 
-# ── NEW helper — attaches image data to a variant in-place ───────────────────
-def _attach_image_to_variant(variant: dict) -> None:
+def _bedrock():
+    return BedrockService()
+
+
+def _attach_image_to_variant(variant: dict) -> dict:
     """
-    If the variant has an image_prompt, call image_service.generate_image()
-    and attach image_url / image_b64 to the variant dict in-place.
-    Does nothing if image_service is not available or image_prompt is empty.
+    Call image_service for this variant's image_prompt.
+    Adds image_b64 and image_url keys (may be None on failure).
     """
-    if not _IMAGE_SERVICE_AVAILABLE:
-        return
-
-    img_prompt = (variant.get("image_prompt") or "").strip()
-    if not img_prompt:
-        return
-
-    logger.info(
-        "Generating image for variant %s: '%s'",
-        variant.get("variant_id"), img_prompt[:60]
-    )
-    result = image_service.generate_image(
-        prompt=img_prompt,
-        model_id=_BEDROCK_IMG_MODEL,
-        save_to_s3=True,
-    )
-
-    if result.get("ok"):
-        variant["image_url"] = result.get("s3_url")   # None if S3 not configured
+    prompt = variant.get("image_prompt") or variant.get("text", "")
+    try:
+        result = generate_image(prompt)
         variant["image_b64"] = result.get("b64")
-    else:
-        logger.warning(
-            "Image generation failed for variant %s: %s",
-            variant.get("variant_id"), result.get("error")
+        variant["image_url"] = result.get("url")
+        logger.debug(
+            "generate_image done — source=%s b64_len=%s",
+            result.get("source"),
+            len(result.get("b64") or ""),
         )
-        variant["image_url"] = None
+    except Exception as exc:
+        logger.warning("generate_image failed for variant %s: %s", variant.get("variant_id"), exc)
         variant["image_b64"] = None
+        variant["image_url"] = None
+    return variant
 
+
+# ── EXISTING: POST /api/drafts/ ───────────────────────────────────────────────
 
 @csrf_exempt
-def drafts_list_create(request):
+@require_http_methods(["POST"])
+def create_draft(request):
     """
-    POST /api/drafts/  -> create a draft (calls Bedrock if enabled)
-    GET  /api/drafts/  -> return recent drafts
+    Create a new draft.
 
-    POST body supports a new optional key:
-        "generate_images": true  — triggers image generation per variant
+    Body:
+      { "prompt": "...", "languages": ["en","hi"],
+        "content_type": "instagram_post", "tone": "casual",
+        "generate_images": false }
+
+    Response 201:
+      { "draft_id": "...", "prompt": "...", "variants": [...], "status": "generated" }
     """
-    if request.method == "POST":
-        try:
-            payload = json.loads(request.body.decode("utf-8") or "{}")
-        except Exception:
-            return HttpResponseBadRequest("invalid json")
+    try:
+        data = _json_body(request)
+    except (ValueError, KeyError) as exc:
+        return JsonResponse({"status": "error", "error": f"Bad JSON: {exc}"}, status=400)
 
-        draft_id        = str(uuid.uuid4())
-        prompt          = payload.get("prompt", "")
-        languages       = payload.get("languages", ["en", "hi"])
-        # ── NEW: opt-in image generation flag ────────────────────────────────
-        generate_images = bool(payload.get("generate_images", False))
+    prompt = data.get("prompt", "").strip()
+    if not prompt:
+        return JsonResponse({"status": "error", "error": "prompt is required"}, status=400)
 
-        # If USE_BEDROCK=true in env, call Bedrock via BedrockService
-        if os.getenv("USE_BEDROCK", "false").lower() in ("1", "true", "yes"):
-            try:
-                bedrock = BedrockService()
-                variants = bedrock.generate_variants(
-                    prompt,
-                    languages,
-                    os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
-                )
+    languages = data.get("languages", ["en", "hi"])
+    generate_images = bool(data.get("generate_images", False))
 
-                # normalise variant IDs if model didn't provide them
-                for i, v in enumerate(variants, start=1):
-                    v.setdefault("variant_id", f"v{i}")
-                    v.setdefault("image_prompt", "")
-                    # ── NEW: ensure image keys are always present ─────────────
-                    v.setdefault("image_url", None)
-                    v.setdefault("image_b64", None)
+    import uuid, time
 
-                # ── NEW: generate images if requested ────────────────────────
-                if generate_images:
-                    for v in variants:
-                        _attach_image_to_variant(v)
-
-                draft = {
-                    "draft_id":   draft_id,
-                    "prompt":     prompt,
-                    "variants":   variants,
-                    "status":     "generated",
-                    "created_at": now().isoformat(),
-                }
-            except Exception as e:
-                # If model call failed, fall back to mock and inform client
-                variants = []
-                for i, lang in enumerate(languages, start=1):
-                    vid  = f"v{i}"
-                    text = f"[FALLBACK {lang}] Could not call Bedrock: {str(e)}"
-                    variants.append(_make_variant(vid, lang, text))
-                draft = {
-                    "draft_id":   draft_id,
-                    "prompt":     prompt,
-                    "variants":   variants,
-                    "status":     "generated_fallback",
-                    "created_at": now().isoformat(),
-                }
-        else:
-            # ── EXISTING mock path — unchanged ────────────────────────────────
-            variants = []
-            for i, lang in enumerate(languages, start=1):
-                vid  = f"v{i}"
-                text = f"[MOCK {lang}] Generated text for prompt: {prompt}"
-                v    = _make_variant(vid, lang, text)
-                # ── NEW: mock image placeholder when generate_images=true ─────
-                if generate_images and _IMAGE_SERVICE_AVAILABLE:
-                    img_result = image_service.generate_image(
-                        f"Illustration of {prompt}", save_to_s3=False
-                    )
-                    v["image_b64"] = img_result.get("b64") if img_result.get("ok") else None
-                    v["image_url"] = None
-                else:
-                    v["image_url"] = None
-                    v["image_b64"] = None
-                variants.append(v)
-
-            draft = {
-                "draft_id":   draft_id,
-                "prompt":     prompt,
-                "variants":   variants,
-                "status":     "generated",
-                "created_at": now().isoformat(),
+    if not _USE_BEDROCK:
+        # deterministic mock
+        variants = [
+            {
+                "variant_id": f"v{i+1}",
+                "lang": lang,
+                "text": f"{prompt} — {lang.upper()} caption",
+                "image_prompt": f"Vivid scene: {prompt}",
+                "image_b64": None,
+                "image_url": None,
             }
-
-        # keep small history (append)
-        _DEMO_STORE["drafts"].insert(0, draft)
-        _DEMO_STORE["drafts"] = _DEMO_STORE["drafts"][:20]
-
+            for i, lang in enumerate(languages)
+        ]
+        draft = {
+            "draft_id": f"mock-{int(time.time()) % 100000}",
+            "prompt": prompt,
+            "variants": variants,
+            "status": "generated_mock",
+        }
+        logger.debug("create_draft mock: draft_id=%s", draft["draft_id"])
         return JsonResponse(draft, status=201)
 
-    # GET -> return small list
-    if request.method == "GET":
-        return JsonResponse(_DEMO_STORE["drafts"], safe=False)
-
-
-# ── EXISTING — unchanged ──────────────────────────────────────────────────────
-@csrf_exempt
-def draft_localize(request, draft_id):
-    """
-    POST /api/drafts/<draft_id>/localize
-    Body: { "variant_id": "v1", "text": "new text", "target_lang": "hi" }
-    """
-    if request.method != "POST":
-        return JsonResponse({"detail": "method not allowed"}, status=405)
     try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except Exception:
-        return HttpResponseBadRequest("invalid json")
+        service = _bedrock()
+        variants = service.generate_variants(prompt, languages, _BEDROCK_MODEL_ID)
 
-    variant_id = payload.get("variant_id")
-    new_text   = payload.get("text")
-    if not variant_id or new_text is None:
-        return HttpResponseBadRequest("variant_id and text required")
+        if generate_images:
+            variants = [_attach_image_to_variant(v) for v in variants]
+        else:
+            for v in variants:
+                v.setdefault("image_b64", None)
+                v.setdefault("image_url", None)
 
-    for d in _DEMO_STORE["drafts"]:
-        if d["draft_id"] == draft_id:
-            for v in d["variants"]:
-                if v["variant_id"] == variant_id:
-                    v["text"] = new_text
-                    return JsonResponse({"ok": True, "variant": v})
-            return JsonResponse({"ok": False, "error": "variant not found"}, status=404)
+        draft = {
+            "draft_id": str(uuid.uuid4()),
+            "prompt": prompt,
+            "variants": variants,
+            "status": "generated",
+        }
+        logger.debug("create_draft ok: draft_id=%s variants=%d", draft["draft_id"], len(variants))
+        return JsonResponse(draft, status=201)
 
-    return JsonResponse({"ok": False, "error": "draft not found"}, status=404)
+    except Exception as exc:
+        logger.exception("create_draft error")
+        return JsonResponse({"status": "error", "error": str(exc)}, status=500)
 
 
-# ── EXISTING — unchanged ──────────────────────────────────────────────────────
+# ── NEW A: POST /api/generate/video_script/ ───────────────────────────────────
+
 @csrf_exempt
-def draft_schedule(request, draft_id):
+@require_http_methods(["POST"])
+def generate_video_script(request):
     """
-    POST /api/drafts/<draft_id>/schedule
-    Body: { "variant_id": "v1", "platforms": ["instagram"], "publish_time": "ISO8601" }
+    Generate a short video shot-list script.
+
+    Body:
+      { "prompt": "Monsoon street food in Patna", "languages": ["en","hi"] }
+
+    Response 200:
+      { "prompt": "...",
+        "scripts": [{"lang":"en","video_script":"[{...}]"}, ...],
+        "status": "ok" }
     """
-    if request.method != "POST":
-        return JsonResponse({"detail": "method not allowed"}, status=405)
     try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except Exception:
-        return HttpResponseBadRequest("invalid json")
+        data = _json_body(request)
+    except ValueError as exc:
+        return JsonResponse({"status": "error", "error": f"Bad JSON: {exc}"}, status=400)
 
-    schedule_id = str(uuid.uuid4())
-    return JsonResponse({"ok": True, "schedule_id": schedule_id, "status": "scheduled"}, status=201)
+    prompt = data.get("prompt", "").strip()
+    languages = data.get("languages", ["en"])
+    if not prompt:
+        return JsonResponse({"status": "error", "error": "prompt is required"}, status=400)
+
+    logger.debug("generate_video_script: prompt=%s languages=%s", prompt[:80], languages)
+
+    try:
+        service = _bedrock()
+        results = service.generate_video_script(prompt, languages)
+        # results = [{"lang": "en", "scenes": [...]}]
+        scripts = [
+            {"lang": r["lang"], "video_script": json.dumps(r.get("scenes", []), ensure_ascii=False)}
+            for r in results
+        ]
+        return JsonResponse({"prompt": prompt, "scripts": scripts, "status": "ok"})
+    except Exception as exc:
+        logger.exception("generate_video_script error")
+        return JsonResponse({"status": "error", "error": str(exc)}, status=500)
 
 
-# ── EXISTING — unchanged ──────────────────────────────────────────────────────
-def draft_analytics(request, draft_id):
+# ── NEW B: POST /api/generate/hashtags/ ───────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_hashtags(request):
     """
-    GET /api/analytics/drafts/<draft_id>
-    Returns mock analytics structure.
+    Generate platform-optimised hashtags with engagement score.
+
+    Body:
+      { "caption": "...", "platform": "instagram", "languages": ["en"] }
+
+    Response 200:
+      { "caption": "...", "platform": "instagram",
+        "hashtags": [{"tag":"#X","score":85,"reason":"..."}],
+        "predicted_engagement": 82, "status": "ok" }
     """
-    resp = {
-        "draft_id": draft_id,
-        "kpis": {"impressions": 1234, "likes": 120, "engagement_rate": 0.032},
-        "variants": [
-            {"variant_id": "v1", "lang": "en", "impressions": 800,  "likes": 80, "predicted_score": 71.2},
-            {"variant_id": "v2", "lang": "hi", "impressions": 434,  "likes": 40, "predicted_score": 65.1},
-        ],
-        "timeline": [
-            {"date": "2026-03-01", "impressions": 100},
-            {"date": "2026-03-02", "impressions": 200},
-        ],
-        "suggestions": [
-            "Shorten the caption to 100 characters",
-            "Add 2-3 popular hashtags",
-        ],
-    }
-    return JsonResponse(resp)
+    try:
+        data = _json_body(request)
+    except ValueError as exc:
+        return JsonResponse({"status": "error", "error": f"Bad JSON: {exc}"}, status=400)
+
+    caption = data.get("caption", "").strip()
+    platform = data.get("platform", "instagram")
+    languages = data.get("languages", ["en"])
+    if not caption:
+        return JsonResponse({"status": "error", "error": "caption is required"}, status=400)
+
+    logger.debug("generate_hashtags: platform=%s caption_len=%d", platform, len(caption))
+
+    try:
+        service = _bedrock()
+        result = service.generate_hashtags(caption, platform, languages)
+        # add score field per tag (use index-based heuristic if not present)
+        hashtags = result.get("hashtags", [])
+        for i, h in enumerate(hashtags):
+            h.setdefault("score", max(50, 95 - i * 5))
+        return JsonResponse({
+            "caption": caption,
+            "platform": platform,
+            "hashtags": hashtags,
+            "predicted_engagement": result.get("predicted_engagement", 70),
+            "status": "ok",
+        })
+    except Exception as exc:
+        logger.exception("generate_hashtags error")
+        return JsonResponse({"status": "error", "error": str(exc)}, status=500)
+
+
+# ── NEW C: POST /api/generate/voice/ ─────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_voice(request):
+    """
+    Convert caption to MP3 audio via Amazon Polly.
+
+    Body:
+      { "text": "...", "lang": "hi", "voice": "Raveena" }
+
+    Response 200:
+      { "status": "ok", "audio_base64": "<base64-mp3>", "mime": "audio/mpeg" }
+    """
+    try:
+        data = _json_body(request)
+    except ValueError as exc:
+        return JsonResponse({"status": "error", "error": f"Bad JSON: {exc}"}, status=400)
+
+    text = data.get("text", "").strip()
+    lang = data.get("lang", "en")
+    voice = data.get("voice") or ("Raveena" if lang == "hi" else "Joanna")
+
+    if not text:
+        return JsonResponse({"status": "error", "error": "text is required"}, status=400)
+
+    logger.debug("generate_voice: lang=%s voice=%s text_len=%d", lang, voice, len(text))
+
+    if not _USE_BEDROCK:
+        # Return a 1-second silent MP3 stub (44 bytes minimal valid)
+        silent_b64 = (
+            "SUQzAwAAAAAAFlRJVDIAAAAMAAAAU2lsZW5jZSAxcwAA"
+            "//uSwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAB"
+        )
+        return JsonResponse({
+            "status": "ok",
+            "audio_base64": silent_b64,
+            "mime": "audio/mpeg",
+            "note": "mock — Polly disabled (USE_BEDROCK=false)",
+        })
+
+    try:
+        from .tts_service import synthesize_speech
+        audio_bytes = synthesize_speech(text, voice=voice, output_format="mp3")
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        return JsonResponse({"status": "ok", "audio_base64": audio_b64, "mime": "audio/mpeg"})
+    except Exception as exc:
+        logger.exception("generate_voice error")
+        return JsonResponse({"status": "error", "error": str(exc)}, status=500)
+
+
+# ── NEW D: POST /api/generate/calendar/ ──────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_calendar(request):
+    """
+    Generate a content calendar.
+
+    Body:
+      { "topic": "...", "platforms": ["instagram","twitter"], "days": 7 }
+
+    Response 200:
+      { "topic": "...", "start_date": "YYYY-MM-DD",
+        "items": [{date, platform, caption, image_prompt, time},...],
+        "status": "ok" }
+    """
+    try:
+        data = _json_body(request)
+    except ValueError as exc:
+        return JsonResponse({"status": "error", "error": f"Bad JSON: {exc}"}, status=400)
+
+    topic = data.get("topic", "").strip()
+    platforms = data.get("platforms", ["instagram", "twitter"])
+    days = int(data.get("days", 7))
+    if not topic:
+        return JsonResponse({"status": "error", "error": "topic is required"}, status=400)
+    days = max(1, min(days, 30))
+
+    logger.debug("generate_calendar: topic=%s days=%d platforms=%s", topic[:80], days, platforms)
+
+    try:
+        from datetime import date
+        service = _bedrock()
+        items = service.generate_content_calendar(topic, platforms, days)
+        return JsonResponse({
+            "topic": topic,
+            "start_date": date.today().isoformat(),
+            "items": items,
+            "status": "ok",
+        })
+    except Exception as exc:
+        logger.exception("generate_calendar error")
+        return JsonResponse({"status": "error", "error": str(exc)}, status=500)
+
+
+# ── NEW E: POST /api/generate/platform_variants/ ─────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_platform_variants(request):
+    """
+    Generate platform-optimised captions per platform x language.
+
+    Body:
+      { "prompt": "...", "languages": ["en","hi"],
+        "platforms": ["instagram","twitter","linkedin","youtube"] }
+
+    Response 200:
+      { "platform_variants": [{platform, lang, caption, cta},...],
+        "status": "ok" }
+    """
+    try:
+        data = _json_body(request)
+    except ValueError as exc:
+        return JsonResponse({"status": "error", "error": f"Bad JSON: {exc}"}, status=400)
+
+    prompt = data.get("prompt", "").strip()
+    languages = data.get("languages", ["en"])
+    platforms = data.get("platforms", ["instagram", "twitter", "linkedin", "youtube"])
+    if not prompt:
+        return JsonResponse({"status": "error", "error": "prompt is required"}, status=400)
+
+    logger.debug(
+        "generate_platform_variants: prompt=%s languages=%s platforms=%s",
+        prompt[:80], languages, platforms,
+    )
+
+    try:
+        service = _bedrock()
+        variants = service.generate_platform_variants(prompt, languages, platforms)
+        return JsonResponse({"platform_variants": variants, "status": "ok"})
+    except Exception as exc:
+        logger.exception("generate_platform_variants error")
+        return JsonResponse({"status": "error", "error": str(exc)}, status=500)

@@ -1,18 +1,30 @@
 ﻿# frontend_app/urls.py
+"""
+BharatStudio URL configuration.
+Include with: path("api/", include("frontend_app.urls"))
+"""
+
 from django.urls import path
-from . import views
+
+from .views import (
+    create_draft,
+    generate_video_script,
+    generate_hashtags,
+    generate_voice,
+    generate_calendar,
+    generate_platform_variants,
+)
 from .image_views import generate_image_view
 
 urlpatterns = [
-    path("drafts/", views.drafts_list_create, name="drafts_list_create"),
-    path("drafts/<str:draft_id>/localize", views.draft_localize, name="draft_localize"),
-    path("drafts/<str:draft_id>/schedule", views.draft_schedule, name="draft_schedule"),
-    path("analytics/drafts/<str:draft_id>", views.draft_analytics, name="draft_analytics"),
+    # ── Existing ──────────────────────────────────────────
+    path("drafts/", create_draft, name="create-draft"),
+    path("images/", generate_image_view, name="generate-image"),
 
-     # ── NEW: standalone image generation endpoint ─────────────────────────────
-    # POST /api/images/  { "prompt": "...", "model": "...", "save_to_s3": true }
-    path("images/",                             generate_image_view,      name="generate_image"),
-
-
-
+    # ── New feature endpoints ──────────────────────────────
+    path("generate/video_script/",      generate_video_script,      name="generate-video-script"),
+    path("generate/hashtags/",          generate_hashtags,          name="generate-hashtags"),
+    path("generate/voice/",             generate_voice,             name="generate-voice"),
+    path("generate/calendar/",          generate_calendar,          name="generate-calendar"),
+    path("generate/platform_variants/", generate_platform_variants, name="generate-platform-variants"),
 ]
