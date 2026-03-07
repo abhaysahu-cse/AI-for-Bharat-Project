@@ -113,11 +113,18 @@ def ping() -> bool:
             return False
 
 
-def post_create_draft(prompt: str, content_type: str = "instagram_post", tone: str = "casual",
-                      languages: Optional[List[str]] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def post_create_draft(
+    prompt: str,
+    content_type: str = "instagram_post",
+    tone: str = "casual",
+    languages: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    generate_images: bool = False,              # ← NEW: triggers image per variant
+) -> Dict[str, Any]:
     """
     Create a new draft via backend.
-    Returns dict: {draft_id, prompt, variants: [{variant_id, lang, text, image_prompt}], status}
+    Returns dict: {draft_id, prompt, variants: [{variant_id, lang, text,
+    image_prompt, image_b64, image_url}], status}
     """
     if languages is None:
         languages = ["en", "hi"]
@@ -130,17 +137,26 @@ def post_create_draft(prompt: str, content_type: str = "instagram_post", tone: s
             "draft_id": f"mock-{int(time.time())%10000}",
             "prompt": prompt,
             "variants": [
-                {"variant_id": "v1", "lang": lang, "text": f"{prompt} — short caption ({lang.upper()})", "image_prompt": f"{lang} street food"} for lang in languages
+                {
+                    "variant_id": f"v{i+1}",
+                    "lang": lang,
+                    "text": f"{prompt} — short caption ({lang.upper()})",
+                    "image_prompt": f"{lang} street food",
+                    "image_b64": None,
+                    "image_url": None,
+                }
+                for i, lang in enumerate(languages)
             ],
             "status": "generated"
         }
 
     payload = {
-        "prompt": prompt,
-        "content_type": content_type,
-        "tone": tone,
-        "languages": languages,
-        "metadata": metadata
+        "prompt":          prompt,
+        "content_type":    content_type,
+        "tone":            tone,
+        "languages":       languages,
+        "metadata":        metadata,
+        "generate_images": generate_images,     # ← forwarded to Django views.py
     }
     return _request("POST", "/drafts/", json=payload)
 
@@ -169,11 +185,11 @@ def post_schedule(draft_id: str, variant_id: str, platforms: List[str], publish_
         return {"ok": True, "schedule_id": f"mock-s-{int(time.time())%10000}", "status": "scheduled"}
 
     payload = {
-        "variant_id": variant_id,
-        "platforms": platforms,
+        "variant_id":   variant_id,
+        "platforms":    platforms,
         "publish_time": publish_time,
-        "timezone": timezone,
-        "campaign": campaign
+        "timezone":     timezone,
+        "campaign":     campaign
     }
     path = f"/drafts/{draft_id}/schedule"
     return _request("POST", path, json=payload)
@@ -184,7 +200,6 @@ def get_recent_drafts(limit: int = 10) -> List[Dict[str, Any]]:
     Fetch recent drafts (for History page).
     """
     if USE_MOCK:
-        # return small stable list for UI
         return [post_create_draft(f"Sample prompt {i}", languages=["en", "hi"]) for i in range(1, 4)]
 
     path = f"/drafts/?limit={limit}"
