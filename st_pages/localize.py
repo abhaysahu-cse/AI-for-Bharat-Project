@@ -1,8 +1,11 @@
 # st_pages/localize.py
+"""
+BharatStudio — Localize & Adapt page.
+Cultural adaptation and tone editing for each variant.
+"""
 
 import streamlit as st
 import random
-import time
 import base64
 from typing import Dict, List
 
@@ -10,10 +13,7 @@ from lib.api_client import post_localize
 from lib.components import header
 
 
-# -----------------------------
-# Utility helpers
-# -----------------------------
-
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def confidence_score():
     return round(random.uniform(0.82, 0.97), 2)
 
@@ -21,7 +21,7 @@ def engagement_prediction():
     return random.randint(60, 92)
 
 def shorten_text(text):
-    return text[:100] + "..." if len(text) > 100 else text
+    return text[:100] + "…" if len(text) > 100 else text
 
 def expand_text(text):
     return text + " Learn more about this topic and explore deeper insights."
@@ -34,165 +34,158 @@ def professionalize(text):
 
 def download_button(text, filename):
     b64 = base64.b64encode(text.encode()).decode()
-    href = f'<a href="data:text/plain;base64,{b64}" download="{filename}">Download</a>'
-    return href
+    return (f'<a href="data:text/plain;base64,{b64}" download="{filename}" '
+            f'style="color:#F97316;text-decoration:none">⬇ Download</a>')
+
+def _image_placeholder(label: str = "Localized visual"):
+    st.markdown(
+        f"<div style='background:#131929;border:1px dashed #242E44;border-radius:10px;"
+        f"height:140px;display:flex;align-items:center;justify-content:center;"
+        f"color:#64748B;font-size:0.8rem;flex-direction:column;gap:6px'>"
+        f"<span style='font-size:1.4rem'>🖼️</span>{label}</div>",
+        unsafe_allow_html=True,
+    )
 
 
-# -----------------------------
-# Main Page
-# -----------------------------
-
+# ── Page ──────────────────────────────────────────────────────────────────────
 def page():
     header()
-    st.title("🌐 AI Localization & Cultural Adaptation Studio")
+
+    st.markdown("""
+    <div style='margin-bottom:20px'>
+      <h1 style='font-family:Sora,sans-serif;font-size:1.8rem;font-weight:700;margin:0;
+                 background:linear-gradient(90deg,#F97316,#FCD34D);
+                 -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                 background-clip:text;'>🌐 Localize & Adapt</h1>
+      <p style='color:#64748B;margin:4px 0 0;font-size:0.88rem'>
+        Cultural adaptation and tone editing for each language variant
+      </p>
+    </div>""", unsafe_allow_html=True)
 
     draft = st.session_state.get("latest_draft")
-
     if not draft:
         st.info("Generate a draft first on the Generate tab.")
         return
 
-    st.success(f"Working on Draft ID: {draft.get('draft_id')}")
+    st.markdown(
+        f"<div style='background:#1A2235;border:1px solid #242E44;border-radius:8px;"
+        f"padding:8px 14px;margin-bottom:16px;font-size:0.82rem;color:#94A3B8'>"
+        f"Working on draft &nbsp;"
+        f"<span style='color:#F97316;font-weight:700'>{draft.get('draft_id','—')}</span>"
+        f"</div>", unsafe_allow_html=True)
 
-    # Global Controls
-    st.markdown("### Global Localization Settings")
+    # Global controls
+    st.markdown("### Global Settings")
     col1, col2, col3 = st.columns(3)
-
     with col1:
-        tone_shift = st.selectbox("Adjust Tone Globally",
-                                  ["Keep Original", "Casual", "Formal", "Emotional", "Motivational"])
-
+        tone_shift = st.selectbox("Adjust tone",
+                                   ["Keep Original","Casual","Formal","Emotional","Motivational"])
     with col2:
-        dialect = st.selectbox("Dialect / Region",
-                               ["Standard", "North India", "South India", "Bihar Style", "Mumbai Slang"])
-
+        dialect = st.selectbox("Dialect / region",
+                                ["Standard","North India","South India","Bihar Style","Mumbai Slang"])
     with col3:
-        cultural_depth = st.slider("Cultural Adaptation Depth", 0, 10, 6)
+        cultural_depth = st.slider("Cultural adaptation depth", 0, 10, 6)
 
     st.markdown("---")
 
-    # Process Each Variant
     for idx, variant in enumerate(draft.get("variants", [])):
+        st.markdown(
+            f"<div style='background:#1A2235;border:1px solid #242E44;border-radius:10px;"
+            f"padding:16px;margin-bottom:16px'>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div style='color:#F97316;font-size:0.75rem;font-weight:700;text-transform:uppercase;"
+            f"letter-spacing:0.5px;margin-bottom:10px'>"
+            f"Variant {idx+1} · {variant.get('lang','').upper()}</div>",
+            unsafe_allow_html=True,
+        )
 
-        st.markdown(f"## Variant {idx+1} — {variant.get('lang')}")
-        original_text = variant.get("text")
-
+        original_text = variant.get("text", "")
         left, right = st.columns([2, 2])
 
-        # Original Panel
         with left:
-            st.markdown("### Original Version")
-            st.info(original_text)
+            st.markdown("**Original**")
+            st.markdown(
+                f"<div style='background:#131929;border-radius:8px;padding:12px;"
+                f"color:#CBD5E1;font-size:0.88rem;line-height:1.5'>{original_text}</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption(f"Confidence: {confidence_score()*100:.1f}% · Predicted engagement: {engagement_prediction()}%")
 
-            st.caption(f"Translation Confidence: {confidence_score()*100:.1f}%")
-
-            st.caption(f"Predicted Engagement: {engagement_prediction()}%")
-
-        # Edit Panel
         with right:
-            st.markdown("### Edit / Enhance")
-
+            st.markdown("**Edit / Enhance**")
             edited_text = st.text_area(
-                f"Localized Text ({variant.get('variant_id')})",
+                f"Localized text",
                 value=original_text,
                 key=f"edit_{variant.get('variant_id')}",
-                height=150
+                height=120,
+                label_visibility="collapsed",
             )
 
             colA, colB, colC, colD = st.columns(4)
-
             with colA:
                 if st.button("Shorten", key=f"short_{idx}"):
-                    edited_text = shorten_text(edited_text)
-                    st.session_state[f"edit_{variant.get('variant_id')}"] = edited_text
-
+                    st.session_state[f"edit_{variant.get('variant_id')}"] = shorten_text(edited_text)
             with colB:
                 if st.button("Expand", key=f"expand_{idx}"):
-                    edited_text = expand_text(edited_text)
-                    st.session_state[f"edit_{variant.get('variant_id')}"] = edited_text
-
+                    st.session_state[f"edit_{variant.get('variant_id')}"] = expand_text(edited_text)
             with colC:
                 if st.button("Emotionalize", key=f"emo_{idx}"):
-                    edited_text = emotionalize(edited_text)
-                    st.session_state[f"edit_{variant.get('variant_id')}"] = edited_text
-
+                    st.session_state[f"edit_{variant.get('variant_id')}"] = emotionalize(edited_text)
             with colD:
-                if st.button("Professionalize", key=f"pro_{idx}"):
-                    edited_text = professionalize(edited_text)
-                    st.session_state[f"edit_{variant.get('variant_id')}"] = edited_text
+                if st.button("Professional", key=f"pro_{idx}"):
+                    st.session_state[f"edit_{variant.get('variant_id')}"] = professionalize(edited_text)
 
-            # Save Action
-            if st.button(f"💾 Save Localization {variant.get('variant_id')}"):
+            if st.button(f"💾 Save", key=f"save_{variant.get('variant_id')}"):
                 try:
-                    post_localize(
-                        draft.get("draft_id"),
-                        variant.get("variant_id"),
-                        edited_text,
-                        variant.get("lang")
-                    )
-                    st.success("Saved Successfully")
+                    post_localize(draft.get("draft_id"), variant.get("variant_id"),
+                                  edited_text, variant.get("lang"))
+                    st.success("Saved")
                 except Exception as e:
-                    st.error("Save failed: " + str(e))
+                    st.error(f"Save failed: {e}")
 
-            # Download Option
             st.markdown(download_button(edited_text, f"localized_{variant.get('variant_id')}.txt"),
                         unsafe_allow_html=True)
 
-        # Image Localization Section
-        st.markdown("### 🎨 Image Prompt Localization")
-
+        # Image section
+        st.markdown("**Image Prompt**")
         img_col1, img_col2 = st.columns([3, 1])
-
         with img_col1:
-            img_prompt = st.text_area(
-                "Image Prompt",
-                value=variant.get("image_prompt", "No image prompt available"),
-                key=f"img_{variant.get('variant_id')}"
-            )
-
+            img_prompt = st.text_area("Image prompt",
+                                      value=variant.get("image_prompt","No image prompt available"),
+                                      key=f"img_{variant.get('variant_id')}")
         with img_col2:
-            if st.button("Regenerate Image Concept", key=f"regen_img_{idx}"):
-                st.success("Image concept regenerated (demo mode)")
+            if st.button("Regenerate concept", key=f"regen_img_{idx}"):
+                st.success("Regenerated (demo mode)")
 
-        st.image("https://via.placeholder.com/600x300.png?text=Localized+Visual",
-                 use_column_width=True)
+        _image_placeholder(f"Localized visual for {variant.get('lang','').upper()}")
 
-        # Engagement Section
-        st.markdown("### 📊 Engagement Optimization")
-
+        # Engagement
+        st.markdown("**Engagement**")
         eng_col1, eng_col2 = st.columns(2)
-
         with eng_col1:
-            st.metric("Engagement Score", f"{engagement_prediction()}%")
-            st.metric("Cultural Relevance", f"{confidence_score()*100:.1f}%")
-
+            st.metric("Engagement score", f"{engagement_prediction()}%")
+            st.metric("Cultural relevance", f"{confidence_score()*100:.1f}%")
         with eng_col2:
-            if st.button("Improve for Engagement", key=f"eng_{idx}"):
-                improved = edited_text + " Don't miss out!"
-                st.session_state[f"edit_{variant.get('variant_id')}"] = improved
-                st.success("Optimized for engagement")
+            if st.button("Optimise for engagement", key=f"eng_{idx}"):
+                st.session_state[f"edit_{variant.get('variant_id')}"] = edited_text + " Don't miss out!"
+                st.success("Optimised for engagement")
 
-        st.markdown("---")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Bulk Actions
-    st.markdown("## 🚀 Bulk Actions")
-
+    # Bulk actions
+    st.markdown("### Bulk Actions")
     bulk_col1, bulk_col2, bulk_col3 = st.columns(3)
-
     with bulk_col1:
-        if st.button("Apply Tone Shift to All"):
-            st.success(f"Tone adjusted to {tone_shift} (demo)")
-
+        if st.button("Apply tone to all"):
+            st.success(f"Tone adjusted to: {tone_shift}")
     with bulk_col2:
-        if st.button("Re-Optimize All Variants"):
-            st.success("All variants optimized (demo)")
-
+        if st.button("Re-optimise all"):
+            st.success("All variants optimised")
     with bulk_col3:
-        if st.button("Export All Localizations"):
-            st.success("All localized content exported (demo)")
+        if st.button("Export all"):
+            st.success("All localizations exported")
 
-    st.markdown("### 🔍 Advanced Debug Panel")
-    with st.expander("View Raw Draft Data"):
+    with st.expander("🔍 Raw draft data"):
         st.json(draft)
-
-    st.caption("Localization Studio powered by BharatStudio AI — Cultural, Contextual, Intelligent.")

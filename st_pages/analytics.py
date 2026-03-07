@@ -203,7 +203,15 @@ def _recommendations_for_variant(variant_metrics: Dict) -> List[str]:
 
 def page():
     header()
-    st.title("📈 Analytics — BharatStudio Insights")
+
+    st.markdown("""
+    <div style='margin-bottom:20px'>
+      <h1 style='font-family:Sora,sans-serif;font-size:1.8rem;font-weight:700;margin:0;
+                 background:linear-gradient(90deg,#F97316,#FCD34D);
+                 -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                 background-clip:text;'>📈 Insights & Analytics</h1>
+      <p style='color:#64748B;margin:4px 0 0;font-size:0.88rem'>Performance metrics, trends and AI-powered recommendations</p>
+    </div>""", unsafe_allow_html=True)
 
     # choose draft: prefer session latest_draft, but also allow list from recent drafts
     session_draft = st.session_state.get("latest_draft")

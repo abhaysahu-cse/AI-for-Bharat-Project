@@ -186,7 +186,15 @@ def _detect_conflict(publish_dt: datetime, platforms: List[str]) -> List[Dict[st
 
 def page():
     header()
-    st.title("📅 Preview & Schedule — BharatStudio")
+
+    st.markdown("""
+    <div style='margin-bottom:20px'>
+      <h1 style='font-family:Sora,sans-serif;font-size:1.8rem;font-weight:700;margin:0;
+                 background:linear-gradient(90deg,#F97316,#FCD34D);
+                 -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                 background-clip:text;'>📅 Schedule & Publish</h1>
+      <p style='color:#64748B;margin:4px 0 0;font-size:0.88rem'>Preview, optimise and schedule content across platforms</p>
+    </div>""", unsafe_allow_html=True)
 
     draft = st.session_state.get("latest_draft")
     if not draft:
@@ -215,7 +223,7 @@ def page():
             if cap_key not in st.session_state:
                 st.session_state[cap_key] = caption
             edited_caption = st.text_area("Edit caption", value=st.session_state[cap_key], key=cap_key, height=100)
-            st.session_state[cap_key] = edited_caption
+            
             st.write("Image concept:", image_prompt)
             if image_preview_url:
                 st.image(image_preview_url, width=240)

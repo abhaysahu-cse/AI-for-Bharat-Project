@@ -268,7 +268,15 @@ def _compare_variants_side_by_side(draft: Dict):
 # ----------------------------
 def page():
     header()
-    st.title("🗂️ Recent Drafts & Content Library")
+
+    st.markdown("""
+    <div style='margin-bottom:20px'>
+      <h1 style='font-family:Sora,sans-serif;font-size:1.8rem;font-weight:700;margin:0;
+                 background:linear-gradient(90deg,#F97316,#FCD34D);
+                 -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                 background-clip:text;'>🗂️ Content Library</h1>
+      <p style='color:#64748B;margin:4px 0 0;font-size:0.88rem'>Browse, search and restore your generated drafts</p>
+    </div>""", unsafe_allow_html=True)
 
     # Controls row
     ctrl1, ctrl2, ctrl3 = st.columns([2, 3, 2])
