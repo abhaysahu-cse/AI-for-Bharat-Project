@@ -31,7 +31,6 @@ SECRET_KEY = 'django-insecure-l+#-n67r^x2zypa&83bvz!d#5kl1r2%ulle@kkaid^7kxb3^^o
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
-CORS_ALLOW_ALL_ORIGINS = True
 
 
 # Application definition
@@ -135,7 +134,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'archive_static']  # Updated: static moved to archive_static
+STATICFILES_DIRS = []
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -144,7 +143,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- CORS (optional, for local Streamlit demos) ---
 # Uncomment the lines below if you have django-cors-headers installed
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:8501",  # Streamlit default port
-# ]
-# ------------------------------------------------
+CORS_ALLOWED_ORIGINS = [
+    "https://bharatstudioai.streamlit.app",
+]
+CORS_ALLOW_ALL_ORIGINS = True
