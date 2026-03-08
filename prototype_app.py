@@ -457,12 +457,18 @@ with st.sidebar:
 
 # ── Top bar ───────────────────────────────────────────────────────────────────
 st.markdown(f"""
-<div class="bs-topbar">
-  <div>
-    <div class="bs-topbar-title">BharatStudio</div>
-    <div class="bs-topbar-tag">{APP_TAGLINE}</div>
+<div style="background:linear-gradient(135deg,#0F1626 0%,#1A2235 100%);
+            border:1px solid #242E44;border-radius:14px;padding:20px 26px;
+            margin-bottom:20px;">
+  <div style="font-family:'Sora',sans-serif;font-size:1.55rem;font-weight:700;
+              background:linear-gradient(90deg,#F97316,#FCD34D);
+              -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+              background-clip:text;margin-bottom:6px;">
+    ✦ BharatStudio — AI Content Studio for India's Creators
   </div>
-  <span class="bs-version">{APP_VERSION}</span>
+  <div style="font-size:1rem;color:#94A3B8;font-weight:400;">
+    Generate multilingual social media content in seconds.
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
